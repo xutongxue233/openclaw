@@ -10,6 +10,7 @@ import { readLaunchAgentProgramArgumentsFromFile as readCommand } from "./launch
 import { decodeLaunchAgentPlistFixture } from "./launchd-plist.test-support.js";
 import { readLaunchAgentProgramArguments } from "./launchd-runtime.js";
 import * as serviceFiles from "./launchd-service-files.js";
+import { publishServiceFile } from "./service-stage.js";
 
 const native = vi.hoisted(() => ({
   ownership: vi.fn<typeof import("./launchd-system.js").assertNoSystemLaunchDaemonOwnership>(),
@@ -69,6 +70,24 @@ beforeEach(() => {
   vi.stubEnv("OPENCLAW_LAUNCHD_LABEL", undefined);
 });
 afterEach(() => vi.restoreAllMocks());
+
+it("rejects timestamp changes after adopting a LaunchAgent publication", async () => {
+  const { env, plistPath } = fixture("retained-timestamp", {});
+  await fs.mkdir(path.dirname(plistPath), { recursive: true });
+  const receipt = await serviceFiles.captureLaunchAgentInstallFiles(env);
+  await publishServiceFile({
+    filePath: plistPath,
+    contents: "synthetic LaunchAgent definition",
+    mode: 0o644,
+    definitionTransaction: receipt.hooks,
+  });
+  await receipt.assertCurrent();
+  const published = await fs.stat(plistPath);
+  await fs.utimes(plistPath, published.atime, new Date(published.mtimeMs + 1000));
+  await expect(receipt.assertCurrent()).rejects.toThrow(
+    "LaunchAgent artifact changed after capture or publication",
+  );
+});
 
 // Binary plist containing only a synthetic label, command, and inline environment value.
 const binaryPlist = Buffer.from(

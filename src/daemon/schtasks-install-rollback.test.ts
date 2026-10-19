@@ -120,6 +120,48 @@ async function fixture(enabled = false) {
   return { args, scriptPath, launcherPath, original, registration, assertRestored, assertBackups };
 }
 
+it.each(["reinstall", "activation failure"] as const)(
+  "settles writer-close mtime changes during %s",
+  async (scenario) => {
+    const { args, scriptPath, assertRestored } = await fixture();
+    const open = fs.open;
+    const settledPublications: number[] = [];
+    vi.spyOn(fs, "open").mockImplementation(async (...parameters) => {
+      const handle = await open(...parameters);
+      if (
+        parameters[1] === "wx" &&
+        typeof parameters[0] === "string" &&
+        parameters[0].startsWith(
+          path.join(path.dirname(scriptPath), `.${path.basename(scriptPath)}.openclaw`),
+        )
+      ) {
+        const close = handle.close.bind(handle);
+        vi.spyOn(handle, "close").mockImplementation(async () => {
+          await close();
+          // Windows may finalize last-write time when the renamed writer closes.
+          const before = await fs.stat(scriptPath);
+          await fs.utimes(scriptPath, before.atime, new Date(before.mtimeMs + 10));
+          settledPublications.push((await fs.stat(scriptPath)).mtimeMs - before.mtimeMs);
+        });
+      }
+      return handle;
+    });
+    if (scenario === "activation failure") {
+      native.run.mockRejectedValueOnce(new Error("Synthetic activation failure"));
+      await expect(installScheduledTask(args)).rejects.toThrow("Synthetic activation failure");
+      await assertRestored();
+    } else {
+      await expect(installScheduledTask(args)).resolves.toEqual({ scriptPath });
+      expect((await readScheduledTaskCommand(args.env))?.programArguments).toEqual(
+        args.programArguments,
+      );
+    }
+    expect(settledPublications).toHaveLength(scenario === "activation failure" ? 2 : 1);
+    expect(settledPublications.every((delta) => delta > 0)).toBe(true);
+    expect(args.warn).not.toHaveBeenCalled();
+  },
+);
+
 it.each(
   ["runtime", "arguments", "environment"].flatMap((change) => [
     { change, unattended: false },

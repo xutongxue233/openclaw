@@ -5,9 +5,29 @@ import { runCliProcessChild } from "../cli/cli-process-child.test-helpers.js";
 import {
   GatewayServiceDefinitionBackupReceiptSchema,
   matchesServiceFilePublication,
+  matchesServiceFileState,
 } from "./service-stage.js";
 
 const dirs = useAutoCleanupTempDirTracker(afterEach);
+
+it.each(["mtimeMs", "ctimeMs"] as const)(
+  "allows %s to settle during publication but detects later changes to retained state",
+  (timestamp) => {
+    const prepared = {
+      sha256: "a".repeat(64),
+      mode: 0o600,
+      dev: "7",
+      ino: "42",
+      size: 10,
+      mtimeMs: 1,
+      ctimeMs: 1,
+    };
+    const published = { ...prepared, [timestamp]: 11 };
+    expect(matchesServiceFilePublication(published, prepared)).toBe(true);
+    expect(matchesServiceFileState(published, published)).toBe(true);
+    expect(matchesServiceFileState({ ...published, [timestamp]: 21 }, published)).toBe(false);
+  },
+);
 
 describe.skipIf(process.platform === "win32")("service publication permissions", () => {
   it.each([0o000, 0o077])(

@@ -234,7 +234,7 @@ export async function captureLaunchAgentInstallFiles(env: GatewayServiceEnv) {
     const expected = published.get(file);
     if (
       expected
-        ? !matchesServiceFilePublication(current, expected)
+        ? !matchesServiceFilePublication(current, expected) || current.mtimeMs !== expected.mtimeMs
         : !isDeepStrictEqual(current, originals.get(file)?.state)
     ) {
       throw new Error(`LaunchAgent artifact changed after capture or publication: ${file}`);
