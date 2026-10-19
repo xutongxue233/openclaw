@@ -1,0 +1,59 @@
+name: Verify issue 176872 service publication on Linux
+
+on:
+  push:
+    branches: [codex/proof-176872]
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  OPENCLAW_VITEST_RUNTIME: node
+  OPENCLAW_PROOF_SOURCE_SHA: 220a33b236cea0981e3d2da35a42a667f9e729b9
+
+jobs:
+  service-publication:
+    if: ${{ github.repository == 'xutongxue233/openclaw' && github.event.repository.private == false }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out the reviewed fix
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.OPENCLAW_PROOF_SOURCE_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24.22.0"
+          package-manager-cache: false
+      - name: Set up the pinned pnpm
+        uses: ./.github/actions/setup-pnpm-store-cache
+        with:
+          node-version: "24.22.0"
+          cache-mode: off
+      - name: Verify the source and runtime pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$OPENCLAW_PROOF_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$OPENCLAW_PROOF_SOURCE_SHA"
+          test "$(node --version)" = "v24.22.0"
+          test "$(pnpm --version)" = "12.11.1"
+          git rev-parse HEAD
+          node --version
+          pnpm --version
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Verify publication, retained receipts, and recovery
+        run: >-
+          node scripts/run-vitest.mjs
+          src/daemon/service-stage.test.ts
+          src/daemon/service-definition-backup.test.ts
+          src/daemon/service-definition-backup.ordering.test.ts
+          src/daemon/launchd-service-files.test.ts
+          src/daemon/launchd-install-authority.test.ts
+          src/daemon/schtasks-install-rollback.test.ts
+          --maxWorkers=1
