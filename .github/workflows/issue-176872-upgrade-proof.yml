@@ -1,0 +1,83 @@
+name: Verify Windows service upgrade 176872
+on:
+  push:
+    branches: [codex/proof-176872-upgrade]
+permissions:
+  contents: read
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+jobs:
+  package:
+    if: github.repository == 'xutongxue233/openclaw' && !github.event.repository.private
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 220a33b236cea0981e3d2da35a42a667f9e729b9
+          persist-credentials: false
+      - uses: ./.github/actions/setup-node-env
+        with:
+          node-version: 24.22.0
+          semantic-checks: "true"
+          cache-mode: off
+      - name: Build and verify the exact candidate package
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 220a33b236cea0981e3d2da35a42a667f9e729b9
+          node scripts/package-openclaw-for-docker.mjs --output-dir "$RUNNER_TEMP/issue-176872-package" --output-name openclaw-176872.tgz
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import crypto from 'node:crypto';
+          const sourceCommit = '220a33b236cea0981e3d2da35a42a667f9e729b9';
+          const root = path.join(process.env.RUNNER_TEMP, 'issue-176872-package');
+          const build = JSON.parse(fs.readFileSync('dist/build-info.json', 'utf8'));
+          assert.equal(build.commit, sourceCommit);
+          assert.ok(build.buildId);
+          const sha256 = crypto.createHash('sha256').update(fs.readFileSync(path.join(root, 'openclaw-176872.tgz'))).digest('hex');
+          fs.writeFileSync(path.join(root, 'candidate.json'), JSON.stringify({sourceCommit, sha256, build}, null, 2));
+          NODE
+          git diff --exit-code
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: issue-176872-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/issue-176872-package/openclaw-176872.tgz
+            ${{ runner.temp }}/issue-176872-package/candidate.json
+          if-no-files-found: error
+          retention-days: 7
+  native-upgrade:
+    needs: package
+    runs-on: windows-2025
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          sparse-checkout: proof/issue-176872-upgrade.ps1
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24.22.0
+          package-manager-cache: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: issue-176872-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/issue-176872-candidate
+      - name: Prove published updater and native S4U service activation
+        shell: pwsh
+        env:
+          PROOF_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: |
+          ./proof/issue-176872-upgrade.ps1 -CandidateDirectory (Join-Path $env:RUNNER_TEMP 'issue-176872-candidate') -FixtureId '${{ github.run_id }}-${{ github.run_attempt }}' -EvidenceRoot (Join-Path $env:RUNNER_TEMP 'issue-176872-upgrade-evidence')
+      - name: Retain sanitized proof and cleanup outcome
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: issue-176872-windows-upgrade-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/issue-176872-upgrade-evidence
+          if-no-files-found: warn
+          retention-days: 7
