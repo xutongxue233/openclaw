@@ -18,6 +18,8 @@ import {
 const tempDirs = useAutoCleanupTempDirTracker(afterEach);
 const cache = ".cache/vitest/results.json";
 const packageCaches = [
+  ".artifacts/vitest-worker-cache/run-cache-0/dist/worker.js",
+  ".cache/bun-transpiler/compiled.pile",
   ".local/share/pnpm/store/v11/files/10/package-content",
   ".cache/openclaw/bun/pinned/linux-x64/bin/bun",
   ".cache/ms-playwright/chromium-1248/chrome-linux64/chrome",
@@ -34,7 +36,13 @@ const userFiles = {
   [`${stagedRoot}/.local/share/pnpm/store/input.txt`]: "staged input\n",
   ".artifacts/report.md": "user report\n",
   ".artifacts/vitest-workers-notes.md": "user notes\n",
+  ".artifacts/vitest-worker-cache-notes.md": "user notes\n",
+  "fixtures/.artifacts/vitest-worker-cache/input.json": "nested user fixture\n",
   "fixtures/.artifacts/vitest-workers/input.json": "nested user fixture\n",
+  ".cache/bun-transpiler-notes.md": "user notes\n",
+  "fixtures/.cache/bun-transpiler/input.txt": "nested user fixture\n",
+  [`${stagedRoot}/.cache/bun-transpiler/input.txt`]: "staged input\n",
+  [`${stagedRoot}/.artifacts/vitest-worker-cache/input.json`]: "staged input\n",
   ".cache/openclaw/notes.md": "user notes\n",
   ".cache/ms-playwright-notes.md": "user notes\n",
   "fixtures/.cache/ms-playwright/input.txt": "nested user fixture\n",

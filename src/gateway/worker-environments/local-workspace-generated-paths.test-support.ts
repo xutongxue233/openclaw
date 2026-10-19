@@ -22,6 +22,8 @@ import { writeWorkspaceFiles } from "./workspace-sync-scripts.test-support.js";
 
 const workerPackage = ".artifacts/vitest-workers/run-cache-0/package.json";
 const packageCaches = [
+  ".artifacts/vitest-worker-cache/run-cache-0/dist/worker.js",
+  ".cache/bun-transpiler/compiled.pile",
   ".local/share/pnpm/store/v11/files/10/package-content",
   ".cache/openclaw/bun/pinned/linux-x64/bin/bun",
   ".cache/ms-playwright/chromium-1248/chrome-linux64/chrome",
@@ -84,6 +86,10 @@ export async function proveGeneratedWorkspaceRecovery(owner: LocalWorkspaceOwner
     "source.txt": "guest source edit\n",
     ".artifacts/report.md": "guest report\n",
     ".artifacts/vitest-workers-notes.md": "guest notes\n",
+    ".artifacts/vitest-worker-cache-notes.md": "guest notes\n",
+    "fixtures/.artifacts/vitest-worker-cache/input.json": "nested user fixture\n",
+    ".cache/bun-transpiler-notes.md": "guest notes\n",
+    "fixtures/.cache/bun-transpiler/input.txt": "nested user fixture\n",
     ".cache/user-data.json": "user data\n",
     ".local/share/user-data.json": "user data\n",
   };
